@@ -2,24 +2,23 @@ package main
 
 import (
 	"net/http"
-	"presistentQueue/controllers"
+	"presistentQueue/handlers"
 	"presistentQueue/initializers"
 )
 
 
 
 
-func defineRoutes() *http.ServeMux{
-	registry := initializers.GetRegistry() //get registry can be a overwritten per every controller
+func defineRoutes(registry *initializers.Registry) *http.ServeMux{
 	mux := http.NewServeMux()
-	mux.HandleFunc("/is_alive", controllerWrapper(controllers.IsAlive, registry) )
+	mux.HandleFunc("/is_alive", handlerWrapper(handlers.IsAlive, registry) )
+	mux.HandleFunc("/push", handlerWrapper(handlers.Push, registry) )
 	return mux
 }
 
 
-func controllerWrapper(controller func(w http.ResponseWriter, r *http.Request, reg *initializers.Registry),
-	registry *initializers.Registry) http.HandlerFunc{
+func handlerWrapper(handler func(w http.ResponseWriter, r *http.Request, reg *initializers.Registry), registry *initializers.Registry) http.HandlerFunc{
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request){
-		controller(w, r, registry)
+		handler(w, r, registry)
 	})
 }
