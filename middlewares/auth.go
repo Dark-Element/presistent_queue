@@ -12,7 +12,6 @@ func Auth(next http.Handler) http.Handler {
 	})
 }
 
-
-func autorizeRequest(r *http.Request){
+func autorizeRequest(r *http.Request) {
 
 }

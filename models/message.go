@@ -30,7 +30,7 @@ func (m *Message) ToSqlInsert() string {
 	}
 	var buffer bytes.Buffer
 	buffer.WriteString("(")
-	buffer.WriteString(parametrizeString( m.UUID))
+	buffer.WriteString(parametrizeString(m.UUID))
 	buffer.WriteString(",")
 	buffer.WriteString(parametrizeInt(m.QueueId))
 	buffer.WriteString(",")

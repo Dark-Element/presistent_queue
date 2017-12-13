@@ -16,5 +16,5 @@ func DbConn(host string, user string, password string, port int, dbName string, 
 }
 
 func generateDSN(host string, user string, password string, port int, dbName string) string {
-	return user + ":"+ password +"@tcp(" + host + ":"+ strconv.Itoa(port)+")/"+ dbName
+	return user + ":" + password + "@tcp(" + host + ":" + strconv.Itoa(port) + ")/" + dbName
 }

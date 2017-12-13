@@ -8,11 +8,11 @@ import (
 	"io/ioutil"
 )
 
-func Push(w http.ResponseWriter, r *http.Request, registry *initializers.Registry){
-	rs,_ := ioutil.ReadAll(r.Body)
+func Push(w http.ResponseWriter, r *http.Request, registry *initializers.Registry) {
+	rs, _ := ioutil.ReadAll(r.Body)
 	s := string(rs)
 	m := factories.Messages(s)
-	if m == nil{
+	if m == nil {
 		io.WriteString(w, "FAIL")
 		return
 	}

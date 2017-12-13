@@ -1,4 +1,4 @@
 package models
 
-type Queue struct{
+type Queue struct {
 }

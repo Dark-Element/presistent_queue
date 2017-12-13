@@ -6,7 +6,7 @@ import (
 	"presistentQueue/initializers"
 )
 
-func main(){
+func main() {
 	registry := initializers.GetRegistry()
 	routes := defineRoutes(registry)
 	middleware := middlewares.NewMiddlares(middlewares.Logging, middlewares.Auth)

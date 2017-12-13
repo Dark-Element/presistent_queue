@@ -22,8 +22,8 @@ func messageFromJSONString(s string) *models.Message {
 		fmt.Println("Error parsing " + s)
 		return nil
 	}
-	return &models.Message{Size:int64(m.Size),
-		Data:m.Data,
+	return &models.Message{Size: int64(m.Size),
+		Data: m.Data,
 		UUID: uuid.NewV4().String(),
 		QueueId: 123123,
 		StorageDriver: "inline",
