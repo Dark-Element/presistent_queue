@@ -13,7 +13,7 @@ type Registry struct {
 // Add more dependencies to the registry here
 func GetRegistry() *Registry {
 	registry := Registry{
-		Messaging: services.InitMessaging(factories.DbConn("192.168.239.129", "root", "getalife", 3306, "queue", 100), 10),
+		Messaging: services.InitMessaging(factories.DbConn("192.168.239.129", "root", "getalife", 3306, "queue", 100), 100),
 	}
 	return &registry
 }

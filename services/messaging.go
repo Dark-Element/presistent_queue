@@ -63,7 +63,7 @@ func (s *Messaging) flush() {
 		iq.WriteString(ins.String())
 		log.Println(iq.String())
 		go func() {
-			_, err := s.dbConn.Query(iq.String())
+			_, err := s.dbConn.Exec(iq.String())
 			if err != nil {
 				log.Println(err)
 			}
