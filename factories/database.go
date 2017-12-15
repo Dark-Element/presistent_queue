@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"log"
 	"strconv"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func DbConn(host string, user string, password string, port int, dbName string, dbPool int) *sql.DB {
