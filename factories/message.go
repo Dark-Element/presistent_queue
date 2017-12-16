@@ -27,5 +27,5 @@ func messageFromJSONString(s string) *models.Message {
 		UUID: uuid.NewV4().String(),
 		QueueId: 123123,
 		StorageDriver: "inline",
-		Timestamp: int(time.Now().UnixNano() / 1000000)}
+		Timestamp: time.Now().UnixNano() / 1000000000}
 }

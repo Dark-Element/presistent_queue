@@ -17,7 +17,7 @@ type Message struct {
 	UUID          string `json:"uuid,omitempty"`
 	QueueId       int64  `json:"queue_id,omitempty"`
 	StorageDriver string `json:"storage_drive,-"`
-	Timestamp     int    `json:"timestamp"`
+	Timestamp     int64  `json:"timestamp"`
 }
 
 func (m *Message) setUUID() {
@@ -36,9 +36,11 @@ func (m *Message) ToSqlInsert() string {
 	buffer.WriteString(",")
 	buffer.WriteString(parametrizeInt(m.Size))
 	buffer.WriteString(",")
+	buffer.WriteString(parametrizeString(m.StorageDriver))
+	buffer.WriteString(",")
 	buffer.WriteString(parametrizeString(m.Data))
 	buffer.WriteString(",")
-	buffer.WriteString(parametrizeString(m.StorageDriver))
+	buffer.WriteString(parametrizeInt(m.Timestamp))
 
 	buffer.WriteString(")")
 	return buffer.String()
