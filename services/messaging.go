@@ -1,5 +1,6 @@
 package services
 
+/*
 import (
 	"presistentQueue/models"
 	"database/sql"
@@ -115,3 +116,4 @@ func buildAggQuery(insertValues bytes.Buffer) string{
 func (s *Messaging) Pop(n int) {}
 
 func (s *Messaging) Ack(m chan *models.Message) {}
+*/

@@ -1,21 +1,20 @@
 package factories
 
 import (
-	"presistentQueue/models"
+	"../models"
 	"encoding/json"
 	"fmt"
 	"time"
-	"github.com/satori/go.uuid"
 )
 
-func Messages(rb string) *models.Message {
-	if m := messageFromJSONString(rb); m != nil {
+func Messages(rb string, qi string) *models.Message {
+	if m := messageFromJSONString(rb, qi); m != nil {
 		return m
 	}
 	return nil
 }
 
-func messageFromJSONString(s string) *models.Message {
+func messageFromJSONString(s string, qi string) *models.Message {
 	var m models.PushedMessage
 	err := json.Unmarshal([]byte(s), &m)
 	if err != nil {
@@ -23,9 +22,9 @@ func messageFromJSONString(s string) *models.Message {
 		return nil
 	}
 	return &models.Message{Size: int64(m.Size),
-		Data: m.Data,
-		UUID: uuid.NewV4().String(),
-		QueueId: 123123,
+		Data:          m.Data,
+		UUID:          "",
+		QueueId:       qi,
 		StorageDriver: "inline",
-		Timestamp: time.Now().UnixNano() / 1000000000}
+		Timestamp:     time.Now().UnixNano() / 1000000000}
 }
