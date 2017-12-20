@@ -21,10 +21,14 @@ type Messaging struct {
 	fileQueues map[string]*FileQueue
 }
 
+
 func (s *Messaging) Push(m *models.Message) {
+	//Create a single file descriptor for each queue_id
 	if _, ok := s.fileQueues[m.QueueId]; !ok {
 		s.mutex.Lock()
-		s.fileQueues[m.QueueId] = NewFileQueue(m.QueueId, 1024*1024*500)
+		if _, ok := s.fileQueues[m.QueueId]; !ok {
+			s.fileQueues[m.QueueId] = NewFileQueue(m.QueueId, 1024*1024*500)
+		}
 		s.mutex.Unlock()
 	}
 	b := bytes.Buffer{}
