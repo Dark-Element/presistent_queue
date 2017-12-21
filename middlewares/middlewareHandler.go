@@ -1,19 +1,19 @@
 package middlewares
 
 import (
-	"net/http"
+	"github.com/valyala/fasthttp"
 )
 
 type Middlewares struct {
-	myMiddleWare []func(next http.Handler) http.Handler
+	myMiddleWare []func(next func(next *fasthttp.RequestCtx)) func(next *fasthttp.RequestCtx)
 }
 
-func NewMiddlares(middlewares ...func(next http.Handler) http.Handler) *Middlewares {
+func NewMiddlwares(middlewares ...func(next func(next *fasthttp.RequestCtx))  func(next *fasthttp.RequestCtx)) *Middlewares {
 	chain := Middlewares{myMiddleWare: middlewares}
 	return &chain
 }
 
-func (md *Middlewares) Then(handler http.Handler) http.Handler {
+func (md *Middlewares) Then(handler func(next *fasthttp.RequestCtx)) func(ctx *fasthttp.RequestCtx) {
 	maxIdx := len(md.myMiddleWare) - 1
 	builtChain := handler
 	for idx, _ := range md.myMiddleWare {

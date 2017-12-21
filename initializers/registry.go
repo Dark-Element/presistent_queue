@@ -1,8 +1,7 @@
 package initializers
 
 import (
-	"presistentQueue/services"
-	"presistentQueue/factories"
+	"persistentQueue/services"
 )
 
 // This is a static registry, initialized at boot
@@ -13,7 +12,7 @@ type Registry struct {
 // Add more dependencies to the registry here
 func GetRegistry() *Registry {
 	registry := Registry{
-		Messaging: services.InitMessaging(factories.DbConn("192.168.239.129", "root", "getalife", 3306, "queue", 100), 100),
+		Messaging: services.InitMessaging(),
 	}
 	return &registry
 }
