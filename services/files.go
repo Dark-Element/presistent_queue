@@ -11,12 +11,15 @@ import (
 )
 
 func NewFileQueue(prefix string, maxFileSize int64) *FileQueue {
-	f := createFile(prefix, 0)
-	r := make(chan *os.File)
-	cr := createReader(f)
+	file := createFile(prefix, 0)
+	fileWriter := bufio.NewWriterSize(file, 1024*1024*5)
 
-	fq := FileQueue{w: f, r: r, prefix: prefix, maxFileSize: maxFileSize, currentR: bufio.NewReader(cr), currentRW: cr, currentFilename: cr.Name(), wq: make(chan bytes.Buffer, 10)}
-	go fq.flush()
+	fr := createReader(file.Name())
+	frb := bufio.NewReader(fr)
+
+	fq := FileQueue{currentWF: file, currentW: fileWriter,
+		currentRF: fr, currentR: frb,
+		maxFileSize: maxFileSize, prefix: prefix}
 	return &fq
 }
 
@@ -30,12 +33,13 @@ type FileQueue struct {
 	wMutex sync.Mutex
 	rMutex sync.Mutex
 
-	w               *os.File
-	wq				chan bytes.Buffer
-	r               chan *os.File
-	currentR        *bufio.Reader
-	currentRW       *os.File
-	currentFilename string
+	currentWF *os.File
+	currentW  *bufio.Writer
+
+	readersQueue chan string
+
+	currentRF *os.File
+	currentR  *bufio.Reader
 
 	prefix      string
 	currentNum  int64
@@ -44,58 +48,41 @@ type FileQueue struct {
 
 //push to file
 //lock the request until flushed (ACID compliance)
-func (f *FileQueue) Push(data bytes.Buffer, flush bool) {
-	data.WriteString("\n")
+func (f *FileQueue) Push(data []byte, flush bool) {
+	data = append(data, "\n"...)
+	f.wMutex.Lock()
+	f.currentW.Write(data)
+	f.wMutex.Unlock()
 	if flush {
-		f.flushPush(data)
-	}else {
-		go f.bufferedPush(data)
+		f.flushToDisk()
 	}
 }
 
-func (f *FileQueue) flushPush(data bytes.Buffer){
-	f.flushToDisk(data)
-}
-
-func (f *FileQueue) bufferedPush(data bytes.Buffer){
-	f.wq <- data
-}
-
-func (f *FileQueue) flushToDisk(data bytes.Buffer){
+func (f *FileQueue) flushToDisk() {
 	f.wMutex.Lock()
-	f.w.WriteString(data.String())
-	fi, err := f.w.Stat()
+	//f.currentW.Flush()
+	fi, err := f.currentWF.Stat()
 	if err != nil {
 		log.Panic("BBBBBBBBBBB")
 	}
 	if fi.Size() >= f.maxFileSize {
 		f.currentNum++
-		cw := f.w
+		cw := f.currentWF.Name()
+		f.currentWF.Close()
 		go func() {
-			f.r <- createReader(cw)
-			cw.Close()
+			f.readersQueue <- cw
 		}()
 
-		f.w = createFile(f.prefix, f.currentNum)
+		f.currentWF = createFile(f.prefix, f.currentNum)
+		f.currentW = bufio.NewWriterSize(f.currentWF, 1024*1024*5)
 	}
 	f.wMutex.Unlock()
-}
-
-
-func (f *FileQueue) flush(){
-	b := bytes.Buffer{}
-	for msg := range f.wq{
-		b.Write(msg.Bytes())
-		if b.Len() >= 1024*1024*10 {
-			f.flushToDisk(b)
-			b = bytes.Buffer{}
-		}
-	}
 }
 
 //change the output to bytes.buffer channel in order to utilize less memory
 func (f *FileQueue) Pop(c int) bytes.Buffer {
 	f.rMutex.Lock()
+	defer f.rMutex.Unlock()
 	b := bytes.Buffer{}
 	var line string
 	var err error
@@ -105,25 +92,25 @@ func (f *FileQueue) Pop(c int) bytes.Buffer {
 		if err != nil {
 			fmt.Println(err)
 			//delete file
-			if f.w.Name() != f.currentRW.Name(){
-				os.Remove(f.currentFilename)
+			if f.currentWF.Name() != f.currentRF.Name() {
+				f.currentRF.Close()
+				os.Remove(f.currentRF.Name())
 			}
 			//pull new one from channel
 			select {
-			case x, ok := <-f.r:
+			case x, ok := <-f.readersQueue:
 				if ok {
 					fmt.Println("Pulled new file")
-					f.currentRW = x
-					f.currentR = bufio.NewReader(x)
-					f.currentFilename = x.Name()
+					f.currentRF = createReader(x)
+					f.currentR = bufio.NewReader(f.currentRF)
 				}
 			default:
 				fmt.Println("No files to read from")
-				break
+				return b
 			}
 		}
 	}
-	f.rMutex.Unlock()
+
 	return b
 }
 
@@ -147,12 +134,10 @@ func createFile(prefix string, lastNum int64) *os.File {
 	return f
 }
 
-func createReader(f *os.File) *os.File{
-	f, err := os.OpenFile(f.Name(), os.O_RDONLY, 0777)
+func createReader(filename string) *os.File {
+	f, err := os.OpenFile(filename, os.O_RDONLY, 0777)
 	if err != nil {
 		log.Panic(err)
 	}
 	return f
 }
-
-

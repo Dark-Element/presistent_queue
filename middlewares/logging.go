@@ -1,19 +1,16 @@
 package middlewares
 
 import (
-
-	"net/http"
+	"github.com/valyala/fasthttp"
+	"fmt"
+	"time"
 )
 
-func Logging(next http.Handler) http.Handler {
-
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		//fmt.Println("request started")
-		//startTime := time.Now()
-		next.ServeHTTP(w, r)
-		//elapsedTime := time.Now().Sub(startTime)
-		//fmt.Printf("time took: %s\n", elapsedTime)
-		//fmt.Printf("------------------\n")
-	})
+func Logging(next func(ctx *fasthttp.RequestCtx)) func(ctx *fasthttp.RequestCtx) {
+	return func(ctx *fasthttp.RequestCtx){
+		st := time.Now()
+		next(ctx)
+		fmt.Printf("Request took: %s\n",time.Now().Sub(st))
+	}
 
 }

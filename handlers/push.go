@@ -1,22 +1,17 @@
 package handlers
 
 import (
-	"../factories"
-	"../initializers"
-	"io"
-	"io/ioutil"
-	"net/http"
+	"persistentQueue/initializers"
+	"github.com/valyala/fasthttp"
+	"persistentQueue/models"
 )
 
-func Push(w http.ResponseWriter, r *http.Request, registry *initializers.Registry) {
-	rs, _ := ioutil.ReadAll(r.Body)
-	s := string(rs)
-	m := factories.Messages(s, r.URL.Query()["queue_id"][0])
-	if m == nil {
-		io.WriteString(w, "FAIL")
-		return
+func Push(ctx *fasthttp.RequestCtx, registry *initializers.Registry) {
+	m := &models.Message{
+		Data: ctx.PostBody(),
+		QueueId: string(ctx.QueryArgs().Peek("queue_id")),
 	}
-
 	registry.Messaging.Push(m, false)
-	io.WriteString(w, "OK")
+	ctx.SetBody([]byte("O"))
+	ctx.Response.Header.Set("Date", "")
 }

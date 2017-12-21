@@ -1,7 +1,7 @@
 package services
 
 import (
-	"../models"
+	"persistentQueue/models"
 	"bytes"
 	"sync"
 )
@@ -29,16 +29,15 @@ func (s *Messaging) Push(m *models.Message, flush bool) {
 	s.mutex.RUnlock()
 
 	if !ok{
-		val = NewFileQueue(m.QueueId, 1024*1024*500)
 		s.mutex.Lock()
-		s.fileQueues[m.QueueId] = val
+		if val, ok = s.fileQueues[m.QueueId]; !ok {
+			val = NewFileQueue(m.QueueId, 1024*1024*500)
+			s.fileQueues[m.QueueId] = val
+		}
 		s.mutex.Unlock()
-
 	}
 
-	b := bytes.Buffer{}
-	b.WriteString(m.ToSqlInsert())
-	val.Push(b, flush)
+	val.Push(m.Data, flush)
 
 
 }

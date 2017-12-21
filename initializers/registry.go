@@ -1,7 +1,7 @@
 package initializers
 
 import (
-	"../services"
+	"persistentQueue/services"
 )
 
 // This is a static registry, initialized at boot

@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"../initializers"
+	"persistentQueue/initializers"
 	"io"
 	"net/http"
 )
