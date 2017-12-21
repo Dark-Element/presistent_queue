@@ -49,7 +49,7 @@ func (f *FileQueue) Push(data bytes.Buffer, flush bool) {
 	if flush {
 		f.flushPush(data)
 	}else {
-		f.bufferedPush(data)
+		go f.bufferedPush(data)
 	}
 }
 
