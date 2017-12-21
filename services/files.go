@@ -15,12 +15,13 @@ func NewFileQueue(prefix string, maxFileSize int64) *FileQueue {
 	r := make(chan *os.File)
 	cr := createReader(f)
 
-	fq := FileQueue{w: f, r: r, prefix: prefix, maxFileSize: maxFileSize, currentR: bufio.NewReader(cr), currentRW: cr, currentFilename: cr.Name()}
+	fq := FileQueue{w: f, r: r, prefix: prefix, maxFileSize: maxFileSize, currentR: bufio.NewReader(cr), currentRW: cr, currentFilename: cr.Name(), wq: make(chan bytes.Buffer, 10)}
+	go fq.flush()
 	return &fq
 }
 
 type iFile interface {
-	Push(data bytes.Buffer) bool
+	Push(data bytes.Buffer, flush bool)
 	Pop(c int64) bytes.Buffer
 	Close()
 }
@@ -30,6 +31,7 @@ type FileQueue struct {
 	rMutex sync.Mutex
 
 	w               *os.File
+	wq				chan bytes.Buffer
 	r               chan *os.File
 	currentR        *bufio.Reader
 	currentRW       *os.File
@@ -42,12 +44,26 @@ type FileQueue struct {
 
 //push to file
 //lock the request until flushed (ACID compliance)
-func (f *FileQueue) Push(data bytes.Buffer) {
-	f.wMutex.Lock()
+func (f *FileQueue) Push(data bytes.Buffer, flush bool) {
 	data.WriteString("\n")
+	if flush {
+		f.flushPush(data)
+	}else {
+		f.bufferedPush(data)
+	}
+}
 
+func (f *FileQueue) flushPush(data bytes.Buffer){
+	f.flushToDisk(data)
+}
+
+func (f *FileQueue) bufferedPush(data bytes.Buffer){
+	f.wq <- data
+}
+
+func (f *FileQueue) flushToDisk(data bytes.Buffer){
+	f.wMutex.Lock()
 	f.w.WriteString(data.String())
-
 	fi, err := f.w.Stat()
 	if err != nil {
 		log.Panic("BBBBBBBBBBB")
@@ -63,6 +79,18 @@ func (f *FileQueue) Push(data bytes.Buffer) {
 		f.w = createFile(f.prefix, f.currentNum)
 	}
 	f.wMutex.Unlock()
+}
+
+
+func (f *FileQueue) flush(){
+	b := bytes.Buffer{}
+	for msg := range f.wq{
+		b.Write(msg.Bytes())
+		if b.Len() >= 1024*1024 {
+			f.flushToDisk(b)
+			b = bytes.Buffer{}
+		}
+	}
 }
 
 //change the output to bytes.buffer channel in order to utilize less memory
@@ -126,3 +154,5 @@ func createReader(f *os.File) *os.File{
 	}
 	return f
 }
+
+

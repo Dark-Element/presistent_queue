@@ -22,12 +22,12 @@ func InitMessaging(db *sql.DB, buffer int64) *Messaging {
 		buffer: buffer,
 		aggValues: make(map[int64]int64),
 	}
-	go ser.flush()
+	go ser.flushToDisk()
 	return &ser
 }
 
 type Messaging struct {
-	mutex        sync.Mutex
+	mutex        sync.mutex
 	dbConn       *sql.DB
 	buffer       int64
 	currentSize  int64 //why not use a channel for sync: in the begging of the flow, msg's size will be the whole data so i wont be able to buffer a lot of data in memory conservative system until the data will be uploaded to external storage
@@ -44,7 +44,7 @@ func (s *Messaging) Push(m *models.Message) {
 	//insert to buffer
 	s.insertValues.WriteString(m.ToSqlInsert())
 	s.aggValues[m.QueueId] += m.Size
-	//check if need to flush
+	//check if need to flushToDisk
 	s.currentSize++
 	if s.currentSize >= s.buffer {
 		s.queries <- [2]bytes.Buffer{s.insertValues,s.aggToSQLInsert()}
@@ -58,7 +58,7 @@ func (s *Messaging) Push(m *models.Message) {
 
 }
 
-func (s *Messaging) flush() {
+func (s *Messaging) flushToDisk() {
 	s.queries = make(chan [2]bytes.Buffer, 1)
 	for ins := range s.queries {
 		//build insert query

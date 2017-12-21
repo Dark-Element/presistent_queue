@@ -17,6 +17,6 @@ func Push(w http.ResponseWriter, r *http.Request, registry *initializers.Registr
 		return
 	}
 
-	registry.Messaging.Push(m)
+	registry.Messaging.Push(m, false)
 	io.WriteString(w, "OK")
 }
