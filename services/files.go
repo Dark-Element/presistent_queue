@@ -86,7 +86,7 @@ func (f *FileQueue) flush(){
 	b := bytes.Buffer{}
 	for msg := range f.wq{
 		b.Write(msg.Bytes())
-		if b.Len() >= 1024*1024 {
+		if b.Len() >= 1024*1024*10 {
 			f.flushToDisk(b)
 			b = bytes.Buffer{}
 		}
