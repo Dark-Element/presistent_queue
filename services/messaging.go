@@ -1,119 +1,68 @@
 package services
 
-/*
 import (
-	"presistentQueue/models"
-	"database/sql"
+	"persistentQueue/models"
 	"bytes"
 	"sync"
-	"log"
-	"strconv"
+	"fmt"
 )
 
 type MessagingInterface interface {
-	Push(m *models.Message)
-	Pop(n int)
-	Ack(m chan *models.Message)
+	Push(m *models.Message, flush bool)
+	Pop(queueId string, n int) bytes.Buffer
+	Close()
 }
 
-func InitMessaging(db *sql.DB, buffer int64) *Messaging {
-	ser := Messaging{
-		dbConn: db,
-		buffer: buffer,
-		aggValues: make(map[int64]int64),
-	}
-	go ser.flushToDisk()
+func InitMessaging() *Messaging {
+	ser := Messaging{fileQueues: make(map[string]*FileQueue), mutex: sync.RWMutex{}}
 	return &ser
 }
 
 type Messaging struct {
-	mutex        sync.mutex
-	dbConn       *sql.DB
-	buffer       int64
-	currentSize  int64 //why not use a channel for sync: in the begging of the flow, msg's size will be the whole data so i wont be able to buffer a lot of data in memory conservative system until the data will be uploaded to external storage
-	insertValues bytes.Buffer
-	aggValues    map[int64]int64
-	queries      chan [2]bytes.Buffer
+	mutex      sync.RWMutex
+	fileQueues map[string]*FileQueue
 }
 
-func (s *Messaging) Push(m *models.Message) {
-	//change storage driver
-	//todo: write this part
 
-	s.mutex.Lock()
-	//insert to buffer
-	s.insertValues.WriteString(m.ToSqlInsert())
-	s.aggValues[m.QueueId] += m.Size
-	//check if need to flushToDisk
-	s.currentSize++
-	if s.currentSize >= s.buffer {
-		s.queries <- [2]bytes.Buffer{s.insertValues,s.aggToSQLInsert()}
-		s.insertValues = bytes.Buffer{}
-		s.aggValues =  make(map[int64]int64)
-		s.currentSize = 0
-	} else {
-		s.insertValues.WriteString(",\n")
-	}
-	s.mutex.Unlock()
+func (s *Messaging) Push(m *models.Message, flush bool) {
+	//Create a single file descriptor for each queue_id
+	s.mutex.RLock()
+	val, ok := s.fileQueues[m.QueueId]
+	s.mutex.RUnlock()
 
-}
-
-func (s *Messaging) flushToDisk() {
-	s.queries = make(chan [2]bytes.Buffer, 1)
-	for ins := range s.queries {
-		//build insert query
-		iq := buildInsertQuery(ins[0])
-		aq := buildAggQuery(ins[1])
-		go func() {
-			_, err := s.dbConn.Exec(iq)
-			if err != nil {
-				log.Println(err)
-				return
-			}
-
-			_, errA := s.dbConn.Exec(aq)
-			if errA != nil {
-				log.Println(errA)
-				return
-			}
-
-		}()
-
+	if !ok{
+		s.mutex.Lock()
+		if val, ok = s.fileQueues[m.QueueId]; !ok {
+			val = NewFileQueue(m.QueueId, 1024*1024*500)
+			s.fileQueues[m.QueueId] = val
+		}
+		s.mutex.Unlock()
 	}
 
+	val.Push(m.Data, flush)
+
+
 }
 
-func (m *Messaging) aggToSQLInsert() bytes.Buffer{
+func (s *Messaging) Pop(queueId string, n int) bytes.Buffer {
 	b := bytes.Buffer{}
-	for idx, val := range m.aggValues{
-		b.WriteString("(")
-		b.WriteString(strconv.FormatInt(idx,10))
-		b.WriteString(",")
-		b.WriteString(strconv.FormatInt(val,10))
-		b.WriteString(")\n")
+	if _, ok := s.fileQueues[queueId]; !ok {
+		return b
 	}
-	return b
+	return s.fileQueues[queueId].Pop(n)
 }
 
-func buildInsertQuery(insertValues bytes.Buffer) string{
-	iq := bytes.Buffer{}
-	iq.WriteString("INSERT INTO `messages` (`uuid`, `queue_id`, `size`,  `storage_driver`, `data`, `timestamp`) VALUES ")
-	iq.WriteString(insertValues.String())
-	return iq.String()
+func (s *Messaging) Close(){
+	s.mutex.Lock()
+	fmt.Println("Closing messaging service")
+	defer fmt.Println("Closed messaging service")
+	if len(s.fileQueues) == 0{
+		return
+	}
+	for _, q := range s.fileQueues{
+		fmt.Println("Closing " + q.prefix)
+		q.Close()
+		fmt.Println("Closed " + q.prefix)
+	}
+
 }
-
-
-func buildAggQuery(insertValues bytes.Buffer) string{
-	iq := bytes.Buffer{}
-	iq.WriteString("INSERT INTO `aggregation` (`queue_id`, `current_size`) VALUES ")
-	iq.WriteString(insertValues.String())
-	iq.WriteString("ON DUPLICATE KEY UPDATE `current_size` = `current_size` + values (`current_size`)")
-	return iq.String()
-}
-
-
-
-func (s *Messaging) Pop(n int) {}
-
-func (s *Messaging) Ack(m chan *models.Message) {}
-*/
