@@ -12,6 +12,5 @@ func Push(ctx *fasthttp.RequestCtx, registry *initializers.Registry) {
 		QueueId: string(ctx.QueryArgs().Peek("queue_id")),
 	}
 	registry.Messaging.Push(m, false)
-	ctx.SetBody([]byte("O"))
-	ctx.Response.Header.Set("Date", "")
+	ctx.SetBody([]byte(""))
 }

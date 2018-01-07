@@ -1,33 +1,36 @@
-package services
+package adapters
 
 import (
+	"sync"
+	"os"
 	"bufio"
 	"bytes"
 	"fmt"
-	"log"
-	"os"
 	"strconv"
-	"sync"
+	"log"
+	"io"
 )
 
 func NewFileQueue(prefix string, maxFileSize int64) *FileQueue {
 	file := createFile(prefix, 0)
-	bufferSize, _ := strconv.ParseInt(os.Getenv("TOPIC_BUFFER"), 10, 32)
-	fileWriter := bufio.NewWriterSize(file, int(bufferSize))
-
+	fileWriter := bufio.NewWriterSize(file, 0)
 	fr := createReader(file.Name())
 	frb := bufio.NewReader(fr)
 
 	fq := FileQueue{currentWF: file, currentW: fileWriter,
 		currentRF: fr, currentR: frb,
-		maxFileSize: maxFileSize, prefix: prefix,
-		bufferSize: int(bufferSize)}
+		maxFileSize: maxFileSize, prefix: prefix}
 	return &fq
 }
 
 type FileQueue struct {
 	wMutex sync.Mutex
 	rMutex sync.Mutex
+
+	prefix      string
+	currentNum  int64
+	maxFileSize int64
+
 
 	currentWF *os.File
 	currentW  *bufio.Writer
@@ -36,47 +39,46 @@ type FileQueue struct {
 
 	currentRF *os.File
 	currentR  *bufio.Reader
-
-	prefix      string
-	currentNum  int64
-	maxFileSize int64
-	bufferSize  int
 }
 
-//push to file
-//lock the request until flushed (ACID compliance)
-func (f *FileQueue) Push(data []byte, flush bool) {
+
+func (f *FileQueue) Push(data []byte) {
 	data = append(data, "\n"...)
 	f.wMutex.Lock()
+	defer f.wMutex.Unlock()
 	f.currentW.Write(data)
-	f.wMutex.Unlock()
-	if flush {
-		f.flushToDisk()
-	}
 	f.rotateLogFile()
 }
 
 //change the output to bytes.buffer channel in order to utilize less memory
-func (f *FileQueue) Pop(c int) bytes.Buffer {
+func (f *FileQueue) Pop(n int64, s int64) io.Reader {
 	f.rMutex.Lock()
-	defer f.rMutex.Unlock()
-	b := bytes.Buffer{}
-	for i := 0; i < c; i++ {
-		line, err := f.currentR.ReadString('\n')
-		b.WriteString(line)
-		if err != nil {
-			fmt.Println(err)
-			f.loadNewReader()
-		}
-	}
+	pr, pw := io.Pipe()
 
-	return b
+	go func(){
+		defer f.rMutex.Unlock()
+		for i := int64(0); i < n; i++ {
+			line, err := f.currentR.ReadBytes('\n')
+			pw.Write(line)
+			if err != nil {
+				fmt.Println(err)
+				f.loadNewReader()
+			}
+		}
+		pw.Close()
+	}()
+
+	return pr
 }
+
+func (f *FileQueue) Peek() (int64, int64){return 9999999,999999}
+func (f *FileQueue) CanPush(s int, atomic bool) bool {return true}
 
 func (f *FileQueue) Close(){
 	f.rMutex.Lock()
 	f.flushToDisk()
 }
+
 
 /**/
 func (f *FileQueue) flushToDisk() {
@@ -98,7 +100,7 @@ func (f *FileQueue) rotateLogFile(){
 		}()
 
 		f.currentWF = createFile(f.prefix, f.currentNum)
-		f.currentW = bufio.NewWriterSize(f.currentWF, f.bufferSize)
+		f.currentW = bufio.NewWriterSize(f.currentWF, 0)
 	}
 }
 
