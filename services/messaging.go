@@ -34,7 +34,7 @@ func (s *Messaging) Push(m *models.Message, atomic bool) {
 	if !ok{
 		s.mutex.Lock()
 		if val, ok = s.topicManager[m.QueueId]; !ok {
-			val = NewTopicManager(m.QueueId, 1024)
+			val = NewTopicManager(m.QueueId, 1024*1024*500)
 			s.topicManager[m.QueueId] = val
 		}
 		s.mutex.Unlock()

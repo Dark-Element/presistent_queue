@@ -16,7 +16,7 @@ type TopicManagerInterface interface {
 }
 
 func NewTopicManager(queue_id string, max_file_size int64) TopicManagerInterface {
-	arr := []adapters.QueueInterface{adapters.InitMemoryQueue(1024), adapters.NewFileQueue(queue_id, max_file_size)}
+	arr := []adapters.QueueInterface{adapters.InitMemoryQueue(1024*10240), adapters.NewFileQueue(queue_id, max_file_size)}
 	return &TopicManager{queues: arr, prefix: queue_id}
 }
 
@@ -48,6 +48,9 @@ func (t *TopicManager) Pop(targetCount int64, targetSize int64) io.Reader {
 			return
 		}
 		for _, a := range t.queues {
+			if targetCount == 0 || targetSize == 0{
+				break
+			}
 			out := make(chan []byte, targetCount)
 			go a.Pop(out, targetCount, targetSize)
 			for {
