@@ -169,11 +169,15 @@ func createReader(filename string) *os.File {
 
 
 func (f *FileQueue) sizeIncr(incr int64) {
+	f.rMutex.Lock()
+	defer f.rMutex.Unlock()
 	f.sizeBytes += incr
 	f.sizeCount++
 }
 
 func (f *FileQueue) sizeDecr(decr int64) {
+	f.wMutex.Lock()
+	defer f.wMutex.Unlock()
 	f.sizeBytes -= decr
 	f.sizeCount--
 }
