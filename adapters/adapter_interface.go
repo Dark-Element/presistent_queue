@@ -1,13 +1,9 @@
 package adapters
 
-import (
-	"io"
-)
-
 type QueueInterface interface {
 	Push(data []byte)
-	Pop(n int64, s int64) io.Reader
+	Pop(out chan []byte, n int64, s int64)
 	Peek() (int64, int64)
-	CanPush(s int, atomic bool) bool
+	CanPush(s int64, atomic bool) bool
 	Close()
 }

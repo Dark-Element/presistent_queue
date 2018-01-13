@@ -5,11 +5,12 @@ import (
 	"sync"
 	"fmt"
 	"io"
+	"bytes"
 )
 
 type MessagingInterface interface {
 	Push(m *models.Message, flush bool)
-	Pop(queueId string, n int) io.Reader
+	Pop(queueId string, LimitCount int64, LimitSize int64) io.Reader
 	Close()
 }
 
@@ -24,7 +25,7 @@ type Messaging struct {
 }
 
 
-func (s *Messaging) Push(m *models.Message) {
+func (s *Messaging) Push(m *models.Message, atomic bool) {
 	//Create a single file descriptor for each queue_id
 	s.mutex.RLock()
 	val, ok := s.topicManager[m.QueueId]
@@ -33,20 +34,20 @@ func (s *Messaging) Push(m *models.Message) {
 	if !ok{
 		s.mutex.Lock()
 		if val, ok = s.topicManager[m.QueueId]; !ok {
-			val = NewTopicManager(m.QueueId, 1024*1024*500)
+			val = NewTopicManager(m.QueueId, 1024)
 			s.topicManager[m.QueueId] = val
 		}
 		s.mutex.Unlock()
 	}
 
-	val.Push(m.Data, false) //todo: add to message struct
+	val.Push(m.Data, atomic)
 }
 
-func (s *Messaging) Pop(queueId string, n int64) io.Reader {
+func (s *Messaging) Pop(queueId string, targetCount int64, targetSize int64) io.Reader {
 	if _, ok := s.topicManager[queueId]; !ok {
-		return nil
+		return bytes.NewReader([]byte(""))
 	}
-	return s.topicManager[queueId].Pop(n)
+	return s.topicManager[queueId].Pop(targetCount, targetSize)
 
 
 }
@@ -59,9 +60,9 @@ func (s *Messaging) Close(){
 		return
 	}
 	for _, q := range s.topicManager {
-		fmt.Println("Closing " + q.prefix)
+		fmt.Println("Closing " + q.Prefix())
 		q.Close()
-		fmt.Println("Closed " + q.prefix)
+		fmt.Println("Closed " + q.Prefix())
 	}
 
 }

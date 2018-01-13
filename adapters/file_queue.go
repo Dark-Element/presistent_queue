@@ -8,18 +8,15 @@ import (
 	"fmt"
 	"strconv"
 	"log"
-	"io"
 )
 
 func NewFileQueue(prefix string, maxFileSize int64) *FileQueue {
 	file := createFile(prefix, 0)
-	fileWriter := bufio.NewWriterSize(file, 0)
-	fr := createReader(file.Name())
-	frb := bufio.NewReader(fr)
+	fileWriter := bufio.NewWriterSize(file, 1)
 
 	fq := FileQueue{currentWF: file, currentW: fileWriter,
-		currentRF: fr, currentR: frb,
-		maxFileSize: maxFileSize, prefix: prefix}
+		maxFileSize: maxFileSize, prefix: prefix, readersQueue: make(chan string, 99999)}
+	go func(){fq.readersQueue <- file.Name()}()
 	return &fq
 }
 
@@ -31,7 +28,6 @@ type FileQueue struct {
 	currentNum  int64
 	maxFileSize int64
 
-
 	currentWF *os.File
 	currentW  *bufio.Writer
 
@@ -39,46 +35,64 @@ type FileQueue struct {
 
 	currentRF *os.File
 	currentR  *bufio.Reader
-}
 
+	sizeBytes int64
+	sizeCount int64
+}
 
 func (f *FileQueue) Push(data []byte) {
 	data = append(data, "\n"...)
 	f.wMutex.Lock()
 	defer f.wMutex.Unlock()
 	f.currentW.Write(data)
+	f.currentW.Flush()
+	f.sizeIncr(int64(len(data)))
 	f.rotateLogFile()
 }
 
 //change the output to bytes.buffer channel in order to utilize less memory
-func (f *FileQueue) Pop(n int64, s int64) io.Reader {
-	f.rMutex.Lock()
-	pr, pw := io.Pipe()
+func (f *FileQueue) Pop(out chan []byte, targetCount int64, targetSize int64) {
 
-	go func(){
-		defer f.rMutex.Unlock()
-		for i := int64(0); i < n; i++ {
-			line, err := f.currentR.ReadBytes('\n')
-			pw.Write(line)
-			if err != nil {
-				fmt.Println(err)
-				f.loadNewReader()
+	for f.sizeCount > 0 && (targetCount > 0 || targetSize > 0) {
+		if f.currentR == nil{
+			if !f.loadNewReader() {
+				break
 			}
 		}
-		pw.Close()
-	}()
+		line, err := f.currentR.ReadBytes('\n')
+		if err != nil {
+			fmt.Println(err)
+			if !f.loadNewReader() {
+				break
+			}
 
-	return pr
+		} else {
+			out <- line
+			targetCount--
+			s := int64(len(line))
+			targetSize -= s
+			f.sizeDecr(s)
+		}
+
+	}
+	close(out)
+
 }
 
-func (f *FileQueue) Peek() (int64, int64){return 9999999,999999}
-func (f *FileQueue) CanPush(s int, atomic bool) bool {return true}
-
-func (f *FileQueue) Close(){
+func (f *FileQueue) Peek() (int64, int64) {
 	f.rMutex.Lock()
+	defer f.rMutex.Unlock()
+	return f.sizeCount, f.sizeBytes
+}
+func (f *FileQueue) CanPush(s int64, atomic bool) bool { return true }
+
+func (f *FileQueue) Close() {
 	f.flushToDisk()
 }
 
+func (f *FileQueue) Prefix() string {
+	return f.prefix
+}
 
 /**/
 func (f *FileQueue) flushToDisk() {
@@ -87,41 +101,46 @@ func (f *FileQueue) flushToDisk() {
 	f.currentW.Flush()
 }
 
-func (f *FileQueue) rotateLogFile(){
+func (f *FileQueue) rotateLogFile() {
 	fi, _ := f.currentWF.Stat()
 	if fi.Size() >= f.maxFileSize {
-		f.wMutex.Lock()
-		defer f.wMutex.Unlock()
 		f.currentNum++
 		cw := f.currentWF.Name()
 		f.currentWF.Close()
 		go func() {
-			f.readersQueue <- cw
+			if f.currentNum != 1{ // dont send the first file twice
+				f.readersQueue <- cw
+			}
 		}()
 
 		f.currentWF = createFile(f.prefix, f.currentNum)
-		f.currentW = bufio.NewWriterSize(f.currentWF, 0)
+		f.currentW = bufio.NewWriterSize(f.currentWF, 1)
 	}
 }
 
-func (f *FileQueue) loadNewReader(){
+func (f *FileQueue) loadNewReader() bool {
+	r := false
 
 	//delete file
-	if f.currentWF.Name() != f.currentRF.Name() {
+	if f.currentRF != nil && f.currentWF.Name() != f.currentRF.Name() {
 		f.currentRF.Close()
 		os.Remove(f.currentRF.Name())
 	}
+
 	//pull new one from channel
-	select {
-	case x, ok := <-f.readersQueue:
-		if ok {
-			fmt.Println("Pulled new file")
-			f.currentRF = createReader(x)
-			f.currentR = bufio.NewReader(f.currentRF)
-		}
-	default:
+	if len(f.readersQueue) > 0 {
+		x := <- f.readersQueue
+		fmt.Println("Pulled new file")
+		f.currentRF = createReader(x)
+		f.currentR = bufio.NewReader(f.currentRF)
+		r = true
+	} else {
 		fmt.Println("No files to read from")
 	}
+
+
+
+	return r
 }
 
 func createFile(prefix string, lastNum int64) *os.File {
@@ -146,4 +165,15 @@ func createReader(filename string) *os.File {
 		log.Panic(err)
 	}
 	return f
+}
+
+
+func (f *FileQueue) sizeIncr(incr int64) {
+	f.sizeBytes += incr
+	f.sizeCount++
+}
+
+func (f *FileQueue) sizeDecr(decr int64) {
+	f.sizeBytes -= decr
+	f.sizeCount--
 }
