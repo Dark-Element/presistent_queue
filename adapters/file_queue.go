@@ -81,6 +81,7 @@ func (f *FileQueue) Peek() (int64, int64) {
 	defer f.rMutex.Unlock()
 	return f.sizeCount, f.sizeBytes
 }
+
 func (f *FileQueue) CanPush(s int64, atomic bool) bool { return true }
 
 func (f *FileQueue) Close() {
@@ -101,7 +102,7 @@ func (f *FileQueue) flushToDisk() {
 func (f *FileQueue) initLogFile(){
 	file := createFile(f.prefix, f.currentNum)
 	f.currentWF = file
-	f.currentW = bufio.NewWriterSize(f.currentWF, 1024*128)
+	f.currentW = bufio.NewWriterSize(f.currentWF, 1024*1024*4)
 	f.readersQueue <- file.Name()
 }
 
