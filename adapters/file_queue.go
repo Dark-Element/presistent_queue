@@ -11,12 +11,10 @@ import (
 )
 
 func NewFileQueue(prefix string, maxFileSize int64) *FileQueue {
-	file := createFile(prefix, 0)
-	fileWriter := bufio.NewWriterSize(file, 1)
 
-	fq := FileQueue{currentWF: file, currentW: fileWriter,
-		maxFileSize: maxFileSize, prefix: prefix, readersQueue: make(chan string, 99999)}
-	go func(){fq.readersQueue <- file.Name()}()
+	fq := FileQueue{maxFileSize: maxFileSize, prefix: prefix, readersQueue: make(chan string, 999999)}
+	fq.initLogFile()
+
 	return &fq
 }
 
@@ -45,7 +43,6 @@ func (f *FileQueue) Push(data []byte) {
 	f.wMutex.Lock()
 	defer f.wMutex.Unlock()
 	f.currentW.Write(data)
-	f.currentW.Flush()
 	f.sizeIncr(int64(len(data)))
 	f.rotateLogFile()
 }
@@ -101,20 +98,19 @@ func (f *FileQueue) flushToDisk() {
 	f.currentW.Flush()
 }
 
+func (f *FileQueue) initLogFile(){
+	file := createFile(f.prefix, f.currentNum)
+	f.currentWF = file
+	f.currentW = bufio.NewWriterSize(f.currentWF, 1024*128)
+	f.readersQueue <- file.Name()
+}
+
 func (f *FileQueue) rotateLogFile() {
 	fi, _ := f.currentWF.Stat()
 	if fi.Size() >= f.maxFileSize {
 		f.currentNum++
-		cw := f.currentWF.Name()
 		f.currentWF.Close()
-		go func() {
-			if f.currentNum != 1{ // dont send the first file twice
-				f.readersQueue <- cw
-			}
-		}()
-
-		f.currentWF = createFile(f.prefix, f.currentNum)
-		f.currentW = bufio.NewWriterSize(f.currentWF, 1)
+		f.initLogFile()
 	}
 }
 
@@ -130,7 +126,7 @@ func (f *FileQueue) loadNewReader() bool {
 	//pull new one from channel
 	if len(f.readersQueue) > 0 {
 		x := <- f.readersQueue
-		fmt.Println("Pulled new file")
+		fmt.Println("Pulled new file: " + x)
 		f.currentRF = createReader(x)
 		f.currentR = bufio.NewReader(f.currentRF)
 		r = true

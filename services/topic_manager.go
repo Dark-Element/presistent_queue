@@ -16,7 +16,7 @@ type TopicManagerInterface interface {
 }
 
 func NewTopicManager(queue_id string, max_file_size int64) TopicManagerInterface {
-	arr := []adapters.QueueInterface{adapters.InitMemoryQueue(1024*10240), adapters.NewFileQueue(queue_id, max_file_size)}
+	arr := []adapters.QueueInterface{adapters.InitMemoryQueue(1024), adapters.NewFileQueue(queue_id, max_file_size)}
 	return &TopicManager{queues: arr, prefix: queue_id}
 }
 
@@ -39,10 +39,10 @@ func (t *TopicManager) Push(data []byte, atomic bool) {
 	}
 }
 func (t *TopicManager) Pop(targetCount int64, targetSize int64) io.Reader {
-	t.Lock()
-	defer t.Unlock()
 	r, w := io.Pipe()
 	go func() {
+		t.Lock()
+		defer t.Unlock()
 		defer w.Close()
 		if !t.CanPop(targetCount, targetSize){
 			return
