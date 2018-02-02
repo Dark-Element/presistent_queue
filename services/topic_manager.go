@@ -16,7 +16,7 @@ type TopicManagerInterface interface {
 }
 
 func NewTopicManager(queue_id string, max_file_size int64) TopicManagerInterface {
-	arr := []adapters.QueueInterface{adapters.InitMemoryQueue(1024), adapters.NewFileQueue(queue_id, max_file_size)}
+	arr := []adapters.QueueInterface{adapters.InitMemoryQueue(1024*1024*5), adapters.NewFileQueue(queue_id, max_file_size)}
 	return &TopicManager{queues: arr, prefix: queue_id}
 }
 
