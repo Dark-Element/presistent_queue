@@ -9,9 +9,8 @@ import (
 func Push(ctx *fasthttp.RequestCtx, registry *initializers.Registry) {
 	m := &models.Message{
 		Data: ctx.PostBody(),
-		QueueId: string(ctx.QueryArgs().Peek("queue_id")),
+		QueueId: string(ctx.QueryArgs().Peek("topic_id")),
 	}
 	registry.Messaging.Push(m, false)
-	ctx.SetBody([]byte("O"))
-	ctx.Response.Header.Set("Date", "")
+	ctx.SetBody([]byte(""))
 }

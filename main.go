@@ -7,14 +7,24 @@ import (
 	"github.com/valyala/fasthttp"
 
 	"persistentQueue/middlewares"
+	"os"
+	"fmt"
+	"syscall"
+	"os/signal"
 )
 
 func main() {
-	registry := initializers.GetRegistry()
+	sigs := make(chan os.Signal, 1)
+	done := make(chan bool, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+
+	registry := initializers.GetRegistry(sigs, done)
 	routes := defineRoutes(registry)
 	middleware := middlewares.NewMiddlwares(middlewares.Logging)
-	fasthttp.ListenAndServe(":8000", middleware.Then(routes))
-	//http.ListenAndServe(":8000", )
+	go fasthttp.ListenAndServe(":8000", middleware.Then(routes))
+
+	<-done
+	fmt.Println("exiting")
 }
 
 func defineRoutes(registry *initializers.Registry) fasthttp.RequestHandler {
